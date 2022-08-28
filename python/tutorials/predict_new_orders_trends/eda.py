@@ -2,8 +2,9 @@
 from os import listdir
 from os.path import join
 import pandas as pd
-from matplotlib import pyplot as plt
 import seaborn as sns
+from matplotlib import pyplot as plt
+
 
 # entry point function to go through all the steps in this module:
 # 1.1. clean up data
@@ -54,24 +55,50 @@ def clean_up_data():
 def analyze_input_distribution(df_orders):
     print('Printing general stats')
     
-    # print how many rows we have with distinct products
+    #------> print how many rows we have with distinct products
     print('Print how many orders we have for each distinct product')
-    df_orders_products = df_orders['Product'].value_counts()
-    print(df_orders_products)
+    print(df_orders['Product'].value_counts())
 
-    # print the sum, mean, min, max, variance of quantities ordered and unit price
+    #------> print the sum, mean, min, max, variance of quantities ordered and unit price
     print('Print basics stats for quantity ordered and price each columns')
     print(df_orders.groupby('Product').agg(
         {'Quantity Ordered':['sum', 'min', 'max', 'var'], 'Price Each': ['mean', 'min', 'max', 'var']}
     ))
 
-    corr = df_orders.corr()
-    print(corr)
-    plt.figure(1)
-    sns.heatmap(corr, 
-        xticklabels=corr.columns.values,
-        yticklabels=corr.columns.values, linewidths=1.5, annot=True, fmt='.2f')
-    plt.show()
+    #------> plot the total amount of items ordered for each month of the year, by product
+
+    # calculate the sum of the ordered quantities for each product, by month
+    # the resulting dataframe will contain thre columns (Product, Order month and Quantity Ordered)
+    df_orders_products = df_orders.groupby(['Product', 'Order month' ], as_index=False)[['Quantity Ordered']].sum()
+
+    # variables to control chart creation
+    first_chart = True
+    plot_chart = 1 # number of chart
+    i = 1 # used to check how many products we have analyzed in the for loop            
+    products_per_chart = 5 #as we have many products, we put only 5 lines per chart
+    plt.figure(i)
+    for product in df_orders_products['Product'].unique():
+        
+        if i % products_per_chart == 0 or first_chart:
+            plt.legend()
+            plt.ylabel('Quantity ordered (# items)')
+            plt.xlabel('Months')
+            plt.title('Sum of ordered quantities by product - 2019')
+            plot_chart = plot_chart + 1
+            first_chart = False
+            plt.figure(i)
+
+        print('Preparing chart for product {}'.format(product))
+        df_product = df_orders_products.loc[df_orders_products['Product'] == product]
+        plt.plot(df_product['Order month'], df_product['Quantity Ordered'], 'o-', label=product)
+        
+        i = i + 1
+
+    plt.legend()
+    plt.ylabel('Quantity ordered (# items)')
+    plt.xlabel('Months')
+    plt.title('Sum of ordered quantities by product - 2019')
+    plt.draw()
 
 #   1.3. write output file
 def print_output_data(df_orders):
