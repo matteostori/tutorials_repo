@@ -127,3 +127,4 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+python/tutorials/predict_new_orders_trends/output/Orders_2019.xlsx
