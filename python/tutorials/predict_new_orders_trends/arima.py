@@ -1,3 +1,4 @@
+from gettext import translation
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
 import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
+import pmdarima as pm
 
 def eda(df_product, split, title):
     g = sns.displot(df_product, x="Sales", kde=True, hue=split)
@@ -86,6 +88,7 @@ if __name__ == '__main__':
     df2 = df2.reset_index().pivot(index='Order Date', columns='Region', values='Sales')
     df2.plot()
     
+    
     df3 = df1.groupby([pd.Grouper(freq='1M')])[['Sales']].sum()
     df4 = df3.copy()
     df4["rollmean_1"] = df4['Sales'].rolling(window=1).mean()
@@ -105,33 +108,85 @@ if __name__ == '__main__':
     
     plot_acf(df_diff, lags=30)
     plt.tight_layout()
-    
+
     seasonal_decomp = seasonal_decompose(df3['Sales'], model="additive")
     seasonal_decomp.plot()
-    plt.draw()
 
     #-----------------> Checking autoregressive order (p) of the Arima model with partial autocorrelation
     fig, axes = plt.subplots(1, 2, sharex=False)
     axes[0].plot(df3['Sales'].diff()); axes[0].set_title('1st Differencing')
     axes[1].set(ylim=(0,5))
     plot_pacf(df3['Sales'].diff().dropna(), ax=axes[1])
-
-    plt.draw()
     
-    model = ARIMA(df3['Sales'], order=(1,1,1))
-    model_fit = model.fit()
-    print(model_fit.summary())
+    # #split 75%/25% training and test set
+    # len_train = round(len(df3['Sales']) * 0.75) 
+    # train = df3['Sales'][:len_train] 
+    # test = df3['Sales'][len_train:]
 
-    # Plot residual errors
-    residuals = pd.DataFrame(model_fit.resid)
-    fig, ax = plt.subplots(1,2)
-    residuals.plot(title="Residuals", ax=ax[0])
-    residuals.plot(kind='kde', title='Density', ax=ax[1])
-    plt.draw()
+    # #train model on train set
+    # model = ARIMA(train, order=(1,1,1))
+    # model_fit = model.fit()
+    # print(model_fit.summary())
+
+    # # Plot residual errors
+    # residuals = pd.DataFrame(model_fit.resid)
+    # fig, ax = plt.subplots(1,2)
+    # residuals.plot(title="Residuals", ax=ax[0])
+    # residuals.plot(kind='kde', title='Density', ax=ax[1])
+    # plt.draw()
+
+    # #forecast to compare with test set
+    # fc_series =  model_fit.forecast(len(test), alpha=0.05)  # 95% conf
+
+    # # Plot
+    # plt.figure(figsize=(12,5), dpi=100)
+    # plt.plot(train, label='training')
+    # plt.plot(test, label='actual')
+    # plt.plot(fc_series, label='forecast')
+    # plt.title('Forecast vs Actuals')
+    # plt.legend(loc='upper left', fontsize=8)
+    # plt.show()
+    
+    #auto model, predict
+    df_model = df3
+    model_auto = pm.auto_arima(df_model['Sales'], start_p=1, start_q=1,
+                        test='adf',       # use adftest to find optimal 'd'
+                        max_p=5, max_q=5, # maximum p and q
+                        m=12,             # frequency = 1 year
+                        d=None,           # let model determine 'd'
+                        seasonal=True,    # Seasonality (SARIMA)
+                        start_P=0, 
+                        D=1, 
+                        trace=True,
+                        error_action='ignore',  
+                        suppress_warnings=False, 
+                        stepwise=True)
+
+    print(model_auto.summary())
+    model_auto.plot_diagnostics(figsize=(7,5))
+    plt.show()
+
+    # Forecast
+    n_periods = 12
+    fc, confint = model_auto.predict(n_periods=n_periods, return_conf_int=True)
+    # make series for plotting purpose
+    lower_series = pd.Series(confint[:, 0], index=fc.index)
+    upper_series = pd.Series(confint[:, 1], index=fc.index)
+
+    # Plot
+    plt.plot(df_model['Sales'])
+    plt.plot(fc, color='darkgreen')
+    plt.fill_between(lower_series.index, 
+                    lower_series, 
+                    upper_series, 
+                    color='k', alpha=.15)
+
+    plt.title("Final Forecast +1 year")
+    plt.show()
 
     # Actual vs Fitted
-    df3['predict'] = model_fit.predict()
-    df3.plot()
+    # df3['predict'] = model_fit.predict()
+    # df3.plot()
 
     # #original
     # fig, axes = plt.subplots(3, 2, sharex=False)
