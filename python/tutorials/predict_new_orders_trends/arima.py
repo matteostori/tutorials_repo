@@ -13,53 +13,7 @@ import numpy as np
 from statsmodels.tsa.arima.model import ARIMA
 import pmdarima as pm
 
-def eda(df_product, split, title):
-    g = sns.displot(df_product, x="Sales", kde=True, hue=split)
-    g.fig.subplots_adjust(top=.95)
-    g.ax.set_title(title)
-    g.figure.autofmt_xdate()
-    plt.draw()
-    
-    g = sns.catplot(data=df_product, x=split, y="Sales", kind="box")
-    g.fig.subplots_adjust(top=.95)
-    g.ax.set_title(title)
-    g.figure.autofmt_xdate()
-    plt.draw()
-
-    # sns.lineplot(x='Order Month', y='Sales', hue='Order Year', data=df)
-
-    g = sns.relplot(x="Order Month", y="Sales", kind="line", hue="Order Year", data=df_product)
-    g.fig.subplots_adjust(top=.95)
-    g.ax.set_title(title)
-    g.figure.autofmt_xdate()
-    plt.show()
-
-if __name__ == '__main__':
-
-    input_file = '../tutorials_repo/data_sources/sales_dataset/sales_store_dataset.csv'
-    df = pd.read_csv(input_file) #open the current file
-    df['Order Date'] = pd.to_datetime(df['Order Date'], format="%d/%m/%Y")
-    df['Ship Date'] = pd.to_datetime(df['Order Date'], format="%d/%m/%Y")
-    df['Order Year'] = pd.DatetimeIndex(df['Order Date']).year
-    df['Order Month'] = pd.DatetimeIndex(df['Order Date']).month
-    df["Order Date YearMonth"] = df["Order Year"].astype(str) + "-" + df["Order Month"].astype(str)
-    df["Order Date YearMonth"] = pd.to_datetime(df["Order Date YearMonth"]).dt.date
-
-    df = df.sort_values(by = ['Order Date'])
-    df.reset_index(drop=True, inplace=True)
-    print(df['Order Date'].dtype)
-    print(df.columns)
-    print(df.describe())
-    print(df['Product Name'].value_counts())
-    print(df['Region'].value_counts())
-    print(df['Segment'].value_counts())
-    print(df['Sub-Category'].value_counts())
-    print(df['Order Date'].iloc[0])
-    print(df['Order Date'].iloc[len(df)-1])
-
-    print('Null values...')
-    print(df.isna().sum()) #print number of rows, for each colums, containing null values
-
+def arima(df):
     # label_encoder = LabelEncoder()
     # df['Ship Mode int'] = label_encoder.fit_transform(df['Ship Mode'])
     # df['Customer ID int'] = label_encoder.fit_transform(df['Customer ID'])
@@ -83,18 +37,8 @@ if __name__ == '__main__':
     # plt.figure(1)
 
     df1 = df.copy()
-    df1.index = df1['Order Date']
-    df2 = df1.groupby([pd.Grouper(freq='1M'), 'Region']).sum()
-    df2 = df2.reset_index().pivot(index='Order Date', columns='Region', values='Sales')
-    df2.plot()
-    
-    
+    df1.index = df1['Order Date']    
     df3 = df1.groupby([pd.Grouper(freq='1M')])[['Sales']].sum()
-    df4 = df3.copy()
-    df4["rollmean_1"] = df4['Sales'].rolling(window=1).mean()
-    df4["rollmean_3"] = df4['Sales'].rolling(window=3).mean()
-    df4["rollmean_5"] = df4['Sales'].rolling(window=5).mean()
-    df4.plot()
 
     #-----------------> Checking differencing order (i) of the Arima model / test for stationarity
     ADF_result = adfuller(df3['Sales'])
@@ -202,40 +146,3 @@ if __name__ == '__main__':
     # plot_acf(df['Sales'].diff().diff().dropna(), ax=axes[2, 1])
 
     # plt.show()
-
-    plot_others = False
-    if plot_others:
-        plt.figure(figsize=(20,5))
-        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        plt.gca().xaxis.set_major_locator(mdates.DayLocator(interval=75))
-        df.groupby("Order Date YearMonth")["Sales"].sum().plot()
-        plt.title("Global Superstore Monthly Sales")
-        plt.legend(loc="best")
-        plt.ylabel("Sales")
-        plt.tight_layout()
-        plt.show()
-
-        g = sns.displot(df, x="Sales", kde=True, hue="Region")
-        g.fig.subplots_adjust(top=.95)
-        g.ax.set_title("Sales distribution")
-        g.figure.autofmt_xdate()
-        plt.show()
-
-        sns.lineplot(x='Order Month', y='Sales', hue='Order Year', data=df)
-        plt.show()
-
-        df = df.loc[df['Category'] == "Technology"]
-
-        df_orders = df.groupby(['Order ID', 'Region', 'Order Year', 'Order Month'], as_index=False)[['Sales']].sum()
-        eda(df_orders, "Region", "Orders")
-
-        for sc in df['Sub-Category'].unique():
-            print(f"Preparing chart for product {sc}")
-            df_product = df.loc[df['Sub-Category'] == sc]
-            print(df_product.describe())
-            q = df_product["Sales"].quantile(0.95)
-            df_product = df_product.loc[df_product["Sales"] < q]
-            print(f"Sub-Category {df_product.describe()}, rows: {len(df_product)}")
-            eda(df_product, "Region", sc)
-    
-    plt.show()
